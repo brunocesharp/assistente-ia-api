@@ -95,3 +95,52 @@ TaskArtifacts
     Id, TaskId, Kind, Uri/Content, CreatedAt
 
 OutboxMessages (se fizer integração/eventos)
+
+4) Arquitetura sugerida (Clean + Ports & Adapters)
+
+Back-end (ASP.NET Core)
+    Presentation (Controllers) finos: HTTP ↔ DTO.
+    Application (UseCases/Handlers): CreateTask, CancelTask, GetTask.
+    Domain: regras (status machine, retry policy, validação de invariantes).
+    Infrastructure:
+        EF Core (repos)
+        Mensageria (RabbitMQ/ASB)
+        Cliente IA (OpenAI/Azure OpenAI/Outro)
+        Observabilidade (Serilog + OpenTelemetry)
+
+Componentes
+
+API (REST)
+  -> TaskService (use cases)
+     -> TaskRepository (EF)
+     -> QueuePublisher (broker/outbox)
+Worker Service (BackgroundService)
+  -> QueueConsumer
+     -> TaskExecutor (IA)
+        -> AiClient
+     -> ResultWriter (EF)
+     -> EventPublisher (outbox/webhook)
+Front (Angular)
+  -> Task list/details
+  -> realtime updates (SignalR ou SSE)
+
+
+5) Contratos REST (versionado + RFC7807)
+Endpoints (v1)
+POST /api/v1/tasks
+headers: Idempotency-Key: <string>
+body: { type, priority, payload }
+resp: 202 Accepted + Location: /api/v1/tasks/{id}
+
+GET /api/v1/tasks/{id}
+
+GET /api/v1/tasks?status=&type=&page=&pageSize=
+header: X-Total-Count
+
+POST /api/v1/tasks/{id}/cancel
+
+GET /api/v1/tasks/{id}/attempts
+
+GET /api/v1/tasks/{id}/artifacts
+
+Erros: application/problem+json com traceId.

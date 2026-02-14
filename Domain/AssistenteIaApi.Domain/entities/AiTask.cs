@@ -54,4 +54,20 @@ public class AiTask : Entity
         LastError = error;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
+
+    public bool TryCancel()
+    {
+        if (Status is AiTaskStatus.Succeeded or AiTaskStatus.DeadLetter)
+        {
+            return false;
+        }
+
+        if (Status == AiTaskStatus.Cancelled)
+        {
+            return true;
+        }
+
+        UpdateStatus(AiTaskStatus.Cancelled);
+        return true;
+    }
 }
