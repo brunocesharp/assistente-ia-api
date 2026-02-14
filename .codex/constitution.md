@@ -184,3 +184,69 @@ ExecutionType
     HumanInLoop
     Batch
     EventDriven
+
+9) Broker
+
+RabbitMQ
+
+http://localhost:15672/#/
+usuario: guest
+senha: guest
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+Contrato da mensagem
+    public record TaskQueued(Guid TaskId, string Type, int Attempt, string CorrelationId);
+
+API publicando mensagem
+app.MapPost("/tasks", async (IPublishEndpoint bus) =>
+{
+    var taskId = Guid.NewGuid();
+    await bus.Publish(new TaskQueued(taskId, "DOCUMENT_SUMMARY", 0, Guid.NewGuid().ToString("N")));
+    return Results.Accepted($"/tasks/{taskId}", new { taskId });
+});
+
+Worker consumindo mensagem
+public class TaskQueuedConsumer : IConsumer<TaskQueued>
+{
+    public async Task Consume(ConsumeContext<TaskQueued> ctx)
+    {
+        // Claim no DB (idempotência)
+        // Executa IA/skill
+        // Salva resultado/status
+        await Task.CompletedTask;
+    }
+}
+
+Configuração do MassTransit (API/Worker)
+
+builder.Services.AddMassTransit(x =>
+{
+    x.AddConsumer<TaskQueuedConsumer>();
+
+    x.UsingRabbitMq((ctx, cfg) =>
+    {
+        cfg.Host("rabbitmq", "/", h =>
+        {
+            h.Username("guest");
+            h.Password("guest");
+        });
+
+        cfg.ReceiveEndpoint("tasks-queued", e =>
+        {
+            e.ConfigureConsumer<TaskQueuedConsumer>(ctx);
+            e.PrefetchCount = 16;           // “quantas mensagens na mão”
+            e.ConcurrentMessageLimit = 1;   // paralelismo por instância
+        });
+    });
+});
+
+
+
+
+

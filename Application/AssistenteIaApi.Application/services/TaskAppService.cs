@@ -1,5 +1,6 @@
 using AssistenteIaApi.Application.Dto;
 using AssistenteIaApi.Application.Ports.In;
+using AssistenteIaApi.Application.Ports.Out;
 using AssistenteIaApi.Domain.Entities;
 using AssistenteIaApi.Domain.Repositories;
 using AssistenteIaApi.Domain.ValueObjects;
@@ -9,10 +10,12 @@ namespace AssistenteIaApi.Application.Services;
 public class TaskAppService : ITaskAppService
 {
     private readonly IAiTaskRepository _taskRepository;
+    private readonly ITaskQueuePublisher _queuePublisher;
 
-    public TaskAppService(IAiTaskRepository taskRepository)
+    public TaskAppService(IAiTaskRepository taskRepository, ITaskQueuePublisher queuePublisher)
     {
         _taskRepository = taskRepository;
+        _queuePublisher = queuePublisher;
     }
 
     public async Task<TaskResponse> CreateAsync(CreateTaskRequest request, CancellationToken cancellationToken = default)
@@ -40,6 +43,10 @@ public class TaskAppService : ITaskAppService
 
         await _taskRepository.AddAsync(task, cancellationToken);
         await _taskRepository.SaveChangesAsync(cancellationToken);
+
+        await _queuePublisher.PublishAsync(
+            new TaskQueued(task.Id, task.CapabilityType.ToString(), 0, Guid.NewGuid().ToString("N")),
+            cancellationToken);
 
         return ToResponse(task);
     }

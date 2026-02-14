@@ -76,4 +76,39 @@ public class AiTask : Entity
         UpdateStatus(AiTaskStatus.Cancelled);
         return true;
     }
+
+    public bool TryStartRunning(string? lockedBy = null)
+    {
+        if (Status is AiTaskStatus.Cancelled or AiTaskStatus.Succeeded or AiTaskStatus.DeadLetter)
+        {
+            return false;
+        }
+
+        Status = AiTaskStatus.Running;
+        AttemptCount++;
+        LockedBy = lockedBy;
+        UpdatedAt = DateTimeOffset.UtcNow;
+        return true;
+    }
+
+    public void MarkSucceeded()
+    {
+        Status = AiTaskStatus.Succeeded;
+        LastError = null;
+        LockedBy = null;
+        LockedUntil = null;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void MarkFailed(string error)
+    {
+        LastError = error;
+        LockedBy = null;
+        LockedUntil = null;
+        UpdatedAt = DateTimeOffset.UtcNow;
+
+        Status = AttemptCount < MaxAttempts
+            ? AiTaskStatus.Queued
+            : AiTaskStatus.DeadLetter;
+    }
 }

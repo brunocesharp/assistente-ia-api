@@ -28,4 +28,24 @@ public class TaskAttempt : Entity
         TaskId = taskId;
         AttemptNo = attemptNo;
     }
+
+    public void CompleteSuccess(string model, int tokensIn, int tokensOut, decimal cost, int latencyMs)
+    {
+        Model = model;
+        TokensIn = tokensIn;
+        TokensOut = tokensOut;
+        Cost = cost;
+        LatencyMs = latencyMs;
+        Status = TaskAttemptStatus.Succeeded;
+        EndedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void CompleteFailure(string errorCode, string errorDetail, int latencyMs)
+    {
+        ErrorCode = errorCode;
+        ErrorDetail = errorDetail;
+        LatencyMs = latencyMs;
+        Status = TaskAttemptStatus.Failed;
+        EndedAt = DateTimeOffset.UtcNow;
+    }
 }
