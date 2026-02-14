@@ -64,7 +64,9 @@ tasksGroup.MapPost("", async (
     var command = new CreateTaskRequest
     {
         TenantId = tenantId,
-        Type = request.Type,
+        DomainType = request.DomainType,
+        CapabilityType = string.IsNullOrWhiteSpace(request.CapabilityType) ? request.Type ?? string.Empty : request.CapabilityType,
+        TaskExecutionType = request.TaskExecutionType,
         Priority = request.Priority,
         PayloadJson = JsonSerializer.Serialize(request.Payload),
         IdempotencyKey = idempotencyKey.ToString(),
@@ -72,12 +74,19 @@ tasksGroup.MapPost("", async (
         MaxAttempts = request.MaxAttempts
     };
 
-    var created = await service.CreateAsync(command, cancellationToken);
-    return Results.Accepted($"/api/v1/tasks/{created.Id}", created);
+    try
+    {
+        var created = await service.CreateAsync(command, cancellationToken);
+        return Results.Accepted($"/api/v1/tasks/{created.Id}", created);
+    }
+    catch (ArgumentException ex)
+    {
+        return Problem(400, ex.Message, httpContext);
+    }
 })
 .WithName("CreateTask")
 .WithSummary("Cria uma nova task")
-.WithDescription("Cria uma task de IA com idempotencia por tenant e retorna 202 com Location.")
+.WithDescription("Cria uma task de IA com DomainType, CapabilityType e TaskExecutionType, com idempotencia por tenant.")
 .Accepts<CreateTaskHttpRequest>("application/json")
 .Produces<TaskResponse>(StatusCodes.Status202Accepted)
 .ProducesProblem(StatusCodes.Status400BadRequest)
@@ -123,6 +132,9 @@ tasksGroup.MapGet("", async (
     HttpContext httpContext,
     ITaskAppService service,
     string? status,
+    string? domainType,
+    string? capabilityType,
+    string? taskExecutionType,
     string? type,
     int? page,
     int? pageSize,
@@ -131,6 +143,9 @@ tasksGroup.MapGet("", async (
     var result = await service.ListAsync(new ListTasksQuery
     {
         Status = status,
+        DomainType = domainType,
+        CapabilityType = capabilityType,
+        TaskExecutionType = taskExecutionType,
         Type = type,
         Page = page ?? 1,
         PageSize = pageSize ?? 20
@@ -141,7 +156,7 @@ tasksGroup.MapGet("", async (
 })
 .WithName("ListTasks")
 .WithSummary("Lista tasks")
-.WithDescription("Lista tasks com filtros de status/tipo e paginacao.")
+.WithDescription("Lista tasks com filtros de status, domainType, capabilityType, taskExecutionType e paginacao.")
 .Produces<IReadOnlyList<TaskResponse>>(StatusCodes.Status200OK)
 .WithOpenApi(operation =>
 {
@@ -233,7 +248,10 @@ static IResult Problem(int statusCode, string detail, HttpContext context)
 
 public class CreateTaskHttpRequest
 {
-    public string Type { get; set; } = string.Empty;
+    public string? Type { get; set; }
+    public string DomainType { get; set; } = string.Empty;
+    public string CapabilityType { get; set; } = string.Empty;
+    public string TaskExecutionType { get; set; } = string.Empty;
     public int Priority { get; set; } = 0;
     public JsonElement Payload { get; set; }
     public DateTimeOffset? ScheduledAt { get; set; }

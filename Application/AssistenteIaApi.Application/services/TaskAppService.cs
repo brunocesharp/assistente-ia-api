@@ -29,7 +29,9 @@ public class TaskAppService : ITaskAppService
 
         var task = new AiTask(
             request.TenantId,
-            request.Type,
+            ParseRequiredDomainType(request.DomainType),
+            ParseRequiredCapabilityType(request.CapabilityType),
+            ParseRequiredTaskExecutionType(request.TaskExecutionType),
             request.Priority,
             request.PayloadJson,
             request.IdempotencyKey,
@@ -53,8 +55,18 @@ public class TaskAppService : ITaskAppService
         var page = query.Page < 1 ? 1 : query.Page;
         var pageSize = query.PageSize is < 1 or > 100 ? 20 : query.PageSize;
         var parsedStatus = ParseStatus(query.Status);
+        var parsedDomainType = ParseDomainType(query.DomainType);
+        var parsedCapabilityType = ParseCapabilityType(query.CapabilityType ?? query.Type);
+        var parsedTaskExecutionType = ParseTaskExecutionType(query.TaskExecutionType);
 
-        var result = await _taskRepository.ListAsync(parsedStatus, query.Type, page, pageSize, cancellationToken);
+        var result = await _taskRepository.ListAsync(
+            parsedStatus,
+            parsedDomainType,
+            parsedCapabilityType,
+            parsedTaskExecutionType,
+            page,
+            pageSize,
+            cancellationToken);
 
         return new PagedTasksResponse
         {
@@ -120,13 +132,78 @@ public class TaskAppService : ITaskAppService
         return Enum.TryParse<AiTaskStatus>(status, true, out var parsed) ? parsed : null;
     }
 
+    private static DomainType? ParseDomainType(string? domainType)
+    {
+        if (string.IsNullOrWhiteSpace(domainType))
+        {
+            return null;
+        }
+
+        return Enum.TryParse<DomainType>(domainType, true, out var parsed) ? parsed : null;
+    }
+
+    private static DomainType ParseRequiredDomainType(string? domainType)
+    {
+        var parsed = ParseDomainType(domainType);
+        if (!parsed.HasValue)
+        {
+            throw new ArgumentException("DomainType is required and must be valid.");
+        }
+
+        return parsed.Value;
+    }
+
+    private static CapabilityType? ParseCapabilityType(string? capabilityType)
+    {
+        if (string.IsNullOrWhiteSpace(capabilityType))
+        {
+            return null;
+        }
+
+        return Enum.TryParse<CapabilityType>(capabilityType, true, out var parsed) ? parsed : null;
+    }
+
+    private static CapabilityType ParseRequiredCapabilityType(string? capabilityType)
+    {
+        var parsed = ParseCapabilityType(capabilityType);
+        if (!parsed.HasValue)
+        {
+            throw new ArgumentException("CapabilityType is required and must be valid.");
+        }
+
+        return parsed.Value;
+    }
+
+    private static TaskExecutionType? ParseTaskExecutionType(string? taskExecutionType)
+    {
+        if (string.IsNullOrWhiteSpace(taskExecutionType))
+        {
+            return null;
+        }
+
+        return Enum.TryParse<TaskExecutionType>(taskExecutionType, true, out var parsed) ? parsed : null;
+    }
+
+    private static TaskExecutionType ParseRequiredTaskExecutionType(string? taskExecutionType)
+    {
+        var parsed = ParseTaskExecutionType(taskExecutionType);
+        if (!parsed.HasValue)
+        {
+            throw new ArgumentException("TaskExecutionType is required and must be valid.");
+        }
+
+        return parsed.Value;
+    }
+
     private static TaskResponse ToResponse(AiTask task)
     {
         return new TaskResponse
         {
             Id = task.Id,
             TenantId = task.TenantId,
-            Type = task.Type,
+            DomainType = task.DomainType.ToString(),
+            CapabilityType = task.CapabilityType.ToString(),
+            TaskExecutionType = task.TaskExecutionType.ToString(),
             Status = task.Status.ToString(),
             AttemptCount = task.AttemptCount,
             MaxAttempts = task.MaxAttempts,

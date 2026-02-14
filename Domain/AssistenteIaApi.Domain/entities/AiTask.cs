@@ -5,7 +5,9 @@ namespace AssistenteIaApi.Domain.Entities;
 public class AiTask : Entity
 {
     public string TenantId { get; private set; } = string.Empty;
-    public string Type { get; private set; } = string.Empty;
+    public DomainType DomainType { get; private set; }
+    public CapabilityType CapabilityType { get; private set; }
+    public TaskExecutionType TaskExecutionType { get; private set; }
     public int Priority { get; private set; }
     public AiTaskStatus Status { get; private set; } = AiTaskStatus.Created;
     public string PayloadJson { get; private set; } = string.Empty;
@@ -29,7 +31,9 @@ public class AiTask : Entity
 
     public AiTask(
         string tenantId,
-        string type,
+        DomainType domainType,
+        CapabilityType capabilityType,
+        TaskExecutionType taskExecutionType,
         int priority,
         string payloadJson,
         string idempotencyKey,
@@ -37,7 +41,9 @@ public class AiTask : Entity
         int maxAttempts)
     {
         TenantId = tenantId;
-        Type = type;
+        DomainType = domainType;
+        CapabilityType = capabilityType;
+        TaskExecutionType = taskExecutionType;
         Priority = priority;
         PayloadJson = payloadJson;
         IdempotencyKey = idempotencyKey;

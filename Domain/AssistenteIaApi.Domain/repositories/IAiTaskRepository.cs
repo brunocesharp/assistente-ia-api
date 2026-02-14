@@ -11,7 +11,9 @@ public interface IAiTaskRepository
     Task<AiTask?> GetByTenantAndIdempotencyAsync(string tenantId, string idempotencyKey, CancellationToken cancellationToken = default);
     Task<(IReadOnlyList<AiTask> Items, int TotalCount)> ListAsync(
         AiTaskStatus? status,
-        string? type,
+        DomainType? domainType,
+        CapabilityType? capabilityType,
+        TaskExecutionType? taskExecutionType,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);

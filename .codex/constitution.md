@@ -81,7 +81,7 @@ Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=007182;
 Tabelas (SQL)
 
 Tasks
-    Id (guid), TenantId, Type, Priority, Status, PayloadJson
+    Id (guid), TenantId, DomainType, CapabilityType, TaskExecutionType, Priority, Status, PayloadJson
     IdempotencyKey (unique por tenant)
     ScheduledAt, LockedUntil, LockedBy
     MaxAttempts, AttemptCount, LastError, CreatedAt, UpdatedAt
@@ -153,3 +153,34 @@ Swagger com OpenAPI 3.0
 Produção = Production
 Homologação = Stagging
 Desenvolveimento = Development
+
+
+8) Value objects
+
+DomainType
+    DocumentProcessing
+    CustomerSupport
+    ComplianceCheck
+    ContentCreation
+    DataAnalysis
+    CodeAutomation
+    DecisionAutomation
+    MonitoringAlert
+
+CapabilityType
+    LLM_Generation
+    LLM_Classification
+    LLM_Reasoning
+    Vision_OCR
+    Vision_ObjectDetection
+    Embedding_Search
+    RuleEngine
+    ExternalIntegration
+
+ExecutionType
+    Sync
+    Async
+    Saga
+    HumanInLoop
+    Batch
+    EventDriven

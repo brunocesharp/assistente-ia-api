@@ -44,7 +44,9 @@ public class AiTaskRepository : IAiTaskRepository
 
     public async Task<(IReadOnlyList<AiTask> Items, int TotalCount)> ListAsync(
         AiTaskStatus? status,
-        string? type,
+        DomainType? domainType,
+        CapabilityType? capabilityType,
+        TaskExecutionType? taskExecutionType,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default)
@@ -56,9 +58,19 @@ public class AiTaskRepository : IAiTaskRepository
             query = query.Where(x => x.Status == status.Value);
         }
 
-        if (!string.IsNullOrWhiteSpace(type))
+        if (domainType.HasValue)
         {
-            query = query.Where(x => x.Type == type);
+            query = query.Where(x => x.DomainType == domainType.Value);
+        }
+
+        if (capabilityType.HasValue)
+        {
+            query = query.Where(x => x.CapabilityType == capabilityType.Value);
+        }
+
+        if (taskExecutionType.HasValue)
+        {
+            query = query.Where(x => x.TaskExecutionType == taskExecutionType.Value);
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
