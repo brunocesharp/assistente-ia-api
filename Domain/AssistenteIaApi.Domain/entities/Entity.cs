@@ -1,4 +1,4 @@
-namespace AssistenteIaApi.Domain;
+namespace AssistenteIaApi.Domain.Entities;
 
 public abstract class Entity
 {
