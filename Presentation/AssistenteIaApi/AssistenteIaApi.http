@@ -1,0 +1,6 @@
+@AssistenteIaApi_HostAddress = http://localhost:5002
+
+GET {{AssistenteIaApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
