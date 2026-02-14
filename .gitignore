@@ -1,0 +1,38 @@
+# Build artifacts
+[Bb]in/
+[Oo]bj/
+out/
+
+# User-specific files
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+
+# IDE directories
+.vs/
+.idea/
+.vscode/
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+
+# Logs
+*.log
+
+# Test and coverage outputs
+TestResults/
+*.trx
+coverage/
+coverage.*
+
+# Publish profiles (sensitive)
+Properties/PublishProfiles/*.pubxml
+Properties/PublishProfiles/*.publishsettings
+
+# OS files
+.DS_Store
+Thumbs.db
