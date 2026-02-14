@@ -50,8 +50,18 @@ ASSISTENTE-IA-API
         policies/
         exceptions/
 
+1) Visão macro (C4 – Containers)
 
-1) Requisitos funcionais
+[Angular SPA] -> [Service A (ASP.NET Core)]
+                                | publishes events/commands
+                                v
+                            [RabbitMQ Broker]
+                                ^
+                                | consumes
+                [Service B (Worker/ASP.NET Core)]
+                [Service C (Worker/ASP.NET Core)]
+
+2) Requisitos funcionais
 
 - Criar tarefa para IA resolver (prompt + contexto + tipo).
 - Enfileirar e despachar para worker.
@@ -60,7 +70,7 @@ ASSISTENTE-IA-API
 - Registrar logs e custos (tokens, latência, modelo).
 - Permitir cancelamento (best-effort).
 
-2) Domínio
+3) Domínio
 Entidades principais
     Task: unidade de trabalho.
     TaskAttempt: cada execução/retentativa (auditável).
@@ -73,7 +83,7 @@ Estados e transições
                                \-> Cancelled
                                \-> DeadLetter (excedeu retries / erro não recuperável)
 
-3) Banco de dados
+4) Banco de dados
 
 Connection
 Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=007182;
@@ -96,7 +106,7 @@ TaskArtifacts
 
 OutboxMessages (se fizer integração/eventos)
 
-4) Arquitetura sugerida (Clean + Ports & Adapters)
+5) Arquitetura sugerida (Clean + Ports & Adapters)
 
 Back-end (ASP.NET Core)
     Presentation (Controllers) finos: HTTP ↔ DTO.
@@ -125,7 +135,7 @@ Front (Angular)
   -> realtime updates (SignalR ou SSE)
 
 
-5) Contratos REST (versionado + RFC7807)
+6) Contratos REST (versionado + RFC7807)
 Endpoints (v1)
 POST /api/v1/tasks
 headers: Idempotency-Key: <string>
@@ -145,17 +155,17 @@ GET /api/v1/tasks/{id}/artifacts
 
 Erros: application/problem+json com traceId.
 
-6) Documentação da API
+7) Documentação da API
 
 Swagger com OpenAPI 3.0
 
-7) Ambientes
+8) Ambientes
 Produção = Production
 Homologação = Stagging
 Desenvolveimento = Development
 
 
-8) Value objects
+9) Value objects
 
 DomainType
     DocumentProcessing
@@ -185,7 +195,7 @@ ExecutionType
     Batch
     EventDriven
 
-9) Broker
+10) Broker
 
 RabbitMQ
 

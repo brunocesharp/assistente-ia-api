@@ -1,8 +1,8 @@
 using AssistenteIaApi.Application.Ports.Out;
+using AssistenteIaApi.Domain.Repositories;
 using AssistenteIaApi.Infrastructure.Config;
 using AssistenteIaApi.Infrastructure.Messaging.Brokers;
 using AssistenteIaApi.Infrastructure.Messaging.Producers;
-using AssistenteIaApi.Domain.Repositories;
 using AssistenteIaApi.Infrastructure.Persistence.Orm;
 using AssistenteIaApi.Infrastructure.Persistence.Repositories;
 using MassTransit;
@@ -14,17 +14,43 @@ namespace AssistenteIaApi.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddInfrastructurePersistence(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not configured.");
-        var rabbitOptions = configuration.GetSection("RabbitMQ").Get<RabbitMqOptions>() ?? new RabbitMqOptions();
 
         services.AddDbContext<AssistenteIaApiDbContext>(options =>
             options.UseNpgsql(connectionString));
 
         services.AddScoped<IAiTaskRepository, AiTaskRepository>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddTaskQueuePublisher(this IServiceCollection services, IConfiguration configuration)
+    {
+        var rabbitOptions = configuration.GetSection("RabbitMQ").Get<RabbitMqOptions>() ?? new RabbitMqOptions();
+
         services.AddScoped<ITaskQueuePublisher, TaskQueuePublisher>();
+
+        services.AddMassTransit(x =>
+        {
+            x.UsingRabbitMq((_, cfg) =>
+            {
+                cfg.Host(rabbitOptions.Host, rabbitOptions.VirtualHost, h =>
+                {
+                    h.Username(rabbitOptions.Username);
+                    h.Password(rabbitOptions.Password);
+                });
+            });
+        });
+
+        return services;
+    }
+
+    public static IServiceCollection AddTaskQueueConsumer(this IServiceCollection services, IConfiguration configuration)
+    {
+        var rabbitOptions = configuration.GetSection("RabbitMQ").Get<RabbitMqOptions>() ?? new RabbitMqOptions();
 
         services.AddMassTransit(x =>
         {
