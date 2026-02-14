@@ -144,3 +144,12 @@ GET /api/v1/tasks/{id}/attempts
 GET /api/v1/tasks/{id}/artifacts
 
 Erros: application/problem+json com traceId.
+
+6) Documentação da API
+
+Swagger com OpenAPI 3.0
+
+7) Ambientes
+Produção = Production
+Homologação = Stagging
+Desenvolveimento = Development

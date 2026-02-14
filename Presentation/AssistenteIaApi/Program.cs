@@ -4,12 +4,24 @@ using AssistenteIaApi.Application.Ports.In;
 using AssistenteIaApi.Infrastructure;
 using AssistenteIaApi.Infrastructure.Persistence.Orm;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
 using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddProblemDetails();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Assistente IA API",
+        Version = "v1",
+        Description = "API para orquestracao de tarefas de IA."
+    });
+});
 
 var app = builder.Build();
 
@@ -20,9 +32,21 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseHttpsRedirection();
+app.UseSwagger();
+app.UseSwaggerUI(options =>
+{
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Assistente IA API v1");
+    options.RoutePrefix = "swagger";
+});
 
-app.MapGet("/", () => "API no ar");
-app.MapPost("/api/v1/tasks", async (
+app.MapGet("/", () => "API no ar")
+    .WithSummary("Health check simples da API")
+    .WithOpenApi();
+
+var tasksGroup = app.MapGroup("/api/v1/tasks")
+    .WithTags("Tasks");
+
+tasksGroup.MapPost("", async (
     CreateTaskHttpRequest request,
     HttpContext httpContext,
     ITaskAppService service,
@@ -50,15 +74,52 @@ app.MapPost("/api/v1/tasks", async (
 
     var created = await service.CreateAsync(command, cancellationToken);
     return Results.Accepted($"/api/v1/tasks/{created.Id}", created);
+})
+.WithName("CreateTask")
+.WithSummary("Cria uma nova task")
+.WithDescription("Cria uma task de IA com idempotencia por tenant e retorna 202 com Location.")
+.Accepts<CreateTaskHttpRequest>("application/json")
+.Produces<TaskResponse>(StatusCodes.Status202Accepted)
+.ProducesProblem(StatusCodes.Status400BadRequest)
+.WithOpenApi(operation =>
+{
+    operation.Parameters.Add(new OpenApiParameter
+    {
+        Name = "Idempotency-Key",
+        In = ParameterLocation.Header,
+        Required = true,
+        Description = "Chave de idempotencia da requisicao.",
+        Schema = new OpenApiSchema { Type = "string" }
+    });
+
+    operation.Parameters.Add(new OpenApiParameter
+    {
+        Name = "X-Tenant-Id",
+        In = ParameterLocation.Header,
+        Required = false,
+        Description = "Identificador do tenant (padrao: default).",
+        Schema = new OpenApiSchema { Type = "string" }
+    });
+
+    return operation;
 });
 
-app.MapGet("/api/v1/tasks/{id:guid}", async (Guid id, HttpContext httpContext, ITaskAppService service, CancellationToken cancellationToken) =>
+tasksGroup.MapGet("/{id:guid}", async (
+    Guid id,
+    HttpContext httpContext,
+    ITaskAppService service,
+    CancellationToken cancellationToken) =>
 {
     var task = await service.GetByIdAsync(id, cancellationToken);
     return task is null ? Problem(404, "Task not found.", httpContext) : Results.Ok(task);
-});
+})
+.WithName("GetTaskById")
+.WithSummary("Consulta task por id")
+.Produces<TaskResponse>(StatusCodes.Status200OK)
+.ProducesProblem(StatusCodes.Status404NotFound)
+.WithOpenApi();
 
-app.MapGet("/api/v1/tasks", async (
+tasksGroup.MapGet("", async (
     HttpContext httpContext,
     ITaskAppService service,
     string? status,
@@ -77,17 +138,48 @@ app.MapGet("/api/v1/tasks", async (
 
     httpContext.Response.Headers["X-Total-Count"] = result.TotalCount.ToString();
     return Results.Ok(result.Items);
+})
+.WithName("ListTasks")
+.WithSummary("Lista tasks")
+.WithDescription("Lista tasks com filtros de status/tipo e paginacao.")
+.Produces<IReadOnlyList<TaskResponse>>(StatusCodes.Status200OK)
+.WithOpenApi(operation =>
+{
+    if (operation.Responses.TryGetValue("200", out var response))
+    {
+        response.Headers ??= new Dictionary<string, OpenApiHeader>();
+        response.Headers["X-Total-Count"] = new OpenApiHeader
+        {
+            Description = "Quantidade total de registros para a consulta.",
+            Schema = new OpenApiSchema { Type = "integer", Format = "int32" }
+        };
+    }
+
+    return operation;
 });
 
-app.MapPost("/api/v1/tasks/{id:guid}/cancel", async (Guid id, HttpContext httpContext, ITaskAppService service, CancellationToken cancellationToken) =>
+tasksGroup.MapPost("/{id:guid}/cancel", async (
+    Guid id,
+    HttpContext httpContext,
+    ITaskAppService service,
+    CancellationToken cancellationToken) =>
 {
     var task = await service.CancelAsync(id, cancellationToken);
     return task is null
         ? Problem(404, "Task not found.", httpContext)
         : Results.Accepted($"/api/v1/tasks/{id}", task);
-});
+})
+.WithName("CancelTask")
+.WithSummary("Cancela uma task")
+.Produces<TaskResponse>(StatusCodes.Status202Accepted)
+.ProducesProblem(StatusCodes.Status404NotFound)
+.WithOpenApi();
 
-app.MapGet("/api/v1/tasks/{id:guid}/attempts", async (Guid id, HttpContext httpContext, ITaskAppService service, CancellationToken cancellationToken) =>
+tasksGroup.MapGet("/{id:guid}/attempts", async (
+    Guid id,
+    HttpContext httpContext,
+    ITaskAppService service,
+    CancellationToken cancellationToken) =>
 {
     var task = await service.GetByIdAsync(id, cancellationToken);
     if (task is null)
@@ -97,9 +189,18 @@ app.MapGet("/api/v1/tasks/{id:guid}/attempts", async (Guid id, HttpContext httpC
 
     var attempts = await service.ListAttemptsAsync(id, cancellationToken);
     return Results.Ok(attempts);
-});
+})
+.WithName("ListTaskAttempts")
+.WithSummary("Lista tentativas de execucao da task")
+.Produces<IReadOnlyList<TaskAttemptResponse>>(StatusCodes.Status200OK)
+.ProducesProblem(StatusCodes.Status404NotFound)
+.WithOpenApi();
 
-app.MapGet("/api/v1/tasks/{id:guid}/artifacts", async (Guid id, HttpContext httpContext, ITaskAppService service, CancellationToken cancellationToken) =>
+tasksGroup.MapGet("/{id:guid}/artifacts", async (
+    Guid id,
+    HttpContext httpContext,
+    ITaskAppService service,
+    CancellationToken cancellationToken) =>
 {
     var task = await service.GetByIdAsync(id, cancellationToken);
     if (task is null)
@@ -109,7 +210,12 @@ app.MapGet("/api/v1/tasks/{id:guid}/artifacts", async (Guid id, HttpContext http
 
     var artifacts = await service.ListArtifactsAsync(id, cancellationToken);
     return Results.Ok(artifacts);
-});
+})
+.WithName("ListTaskArtifacts")
+.WithSummary("Lista artefatos de saida da task")
+.Produces<IReadOnlyList<TaskArtifactResponse>>(StatusCodes.Status200OK)
+.ProducesProblem(StatusCodes.Status404NotFound)
+.WithOpenApi();
 
 app.Run();
 
