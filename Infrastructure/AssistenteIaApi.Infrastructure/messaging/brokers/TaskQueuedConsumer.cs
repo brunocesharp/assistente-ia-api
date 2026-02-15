@@ -31,6 +31,7 @@ public class TaskQueuedConsumer : IConsumer<TaskQueued>
         var workerId = Environment.MachineName;
         var now = DateTimeOffset.UtcNow;
         var lease = now.AddMinutes(10);
+        _logger.LogInformation("Consuming task message. TaskId: {TaskId}, Attempt: {Attempt}, Worker: {WorkerId}", msg.TaskId, msg.Attempt, workerId);
 
         var claimed = await _db.Tasks
             .Where(t => t.Id == msg.TaskId
@@ -69,6 +70,7 @@ public class TaskQueuedConsumer : IConsumer<TaskQueued>
             _db.TaskArtifacts.Add(new TaskArtifact(taskEntity.Id, "text", null, result));
 
             await _db.SaveChangesAsync(ctx.CancellationToken);
+            _logger.LogInformation("Task {TaskId} succeeded in {LatencyMs}ms.", msg.TaskId, latency);
         }
         catch (TransientAiException ex)
         {
@@ -76,6 +78,7 @@ public class TaskQueuedConsumer : IConsumer<TaskQueued>
             attempt.CompleteFailure("AI_TRANSIENT_ERROR", ex.Message, latency);
             await MarkRetryAsync(msg.TaskId, ex.Message, ctx.CancellationToken);
             await _db.SaveChangesAsync(ctx.CancellationToken);
+            _logger.LogWarning(ex, "Transient failure for task {TaskId}. Re-queued after {LatencyMs}ms.", msg.TaskId, latency);
             throw;
         }
         catch (Exception ex)
@@ -84,6 +87,7 @@ public class TaskQueuedConsumer : IConsumer<TaskQueued>
             attempt.CompleteFailure("AI_EXEC_ERROR", ex.Message, latency);
             await MarkFailedAsync(msg.TaskId, ex.ToString(), ctx.CancellationToken);
             await _db.SaveChangesAsync(ctx.CancellationToken);
+            _logger.LogError(ex, "Permanent failure for task {TaskId} after {LatencyMs}ms.", msg.TaskId, latency);
             throw;
         }
     }

@@ -3,8 +3,11 @@ using AssistenteIaApi.Infrastructure;
 using AssistenteIaApi.Infrastructure.Persistence.Orm;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseSerilog((context, loggerConfiguration) =>
+    loggerConfiguration.ReadFrom.Configuration(context.Configuration));
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructurePersistence(builder.Configuration);
@@ -31,6 +34,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseHttpsRedirection();
+app.UseSerilogRequestLogging();
 app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
