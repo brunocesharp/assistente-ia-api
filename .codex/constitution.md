@@ -1,65 +1,102 @@
 Organização de pastas no projeto
-ASSISTENTE-IA-API
-    - Presentation
-    - Application
-        use-cases/
-        commands/
-        queries/
-        dto/
-        mappers/
-        ports/
-            in/                 # interfaces para entrada (ex: handlers)
-            out/                # interfaces para saída (ex: gateway, publisher)
-        services/             # serviços de aplicação (orquestração)
-        validators/
-    - Infrastructure
-        infrastructure/
-        persistence/
-            orm/
-            migrations/
-            repositories/       # implements domain/application ports
-        messaging/
-            producers/
-            brokers/
-        http/
-            server/
-            middlewares/
-        config/
-        logging/
-        monitoring/
-        di/                   # dependency injection composition root
-    - Interfaces/
-        http/
-            controllers/
-            presenters/
-            routes/
-            request-models/
-            response-models/
-        cli/
-        messaging/
-            consumers/
-        graphql/    
-    - domain/
-        entities/
-        value-objects/
-        aggregates/
-        events/
-        services/
-        repositories/        # interfaces (ports)
-        specifications/
-        policies/
-        exceptions/
+
+Lista de Pasta para cada projeto
+    API - Pasta para os projetos API
+        Projeto: Assistente.API
+            - Presentation
+            - Application
+                use-cases/
+                commands/
+                queries/
+                dto/
+                mappers/
+                ports/
+                    in/                 # interfaces para entrada (ex: handlers)
+                    out/                # interfaces para saída (ex: gateway, publisher)
+                services/             # serviços de aplicação (orquestração)
+                validators/
+            - Infrastructure
+                infrastructure/
+                persistence/
+                    orm/
+                    migrations/
+                    repositories/       # implements domain/application ports
+                messaging/
+                    producers/
+                    brokers/
+                http/
+                    server/
+                    middlewares/
+                config/
+                logging/
+                monitoring/
+                di/                   # dependency injection composition root
+            - Interfaces/
+                http/
+                    controllers/
+                    presenters/
+                    routes/
+                    request-models/
+                    response-models/
+                cli/
+                messaging/
+                    consumers/
+                graphql/    
+            - domain/
+                entities/
+                value-objects/
+                aggregates/
+                events/
+                services/
+                repositories/        # interfaces (ports)
+                specifications/
+                policies/
+                exceptions/
+    Workers - Pasta para os projetos Worker
+        Projeto: Assistente.Worker
+    FrontEnd - Pasta para os projetos FrontEnd
+        Projeto: Assistente.SPA
+            src/
+            app/
+                core/
+                services/
+                guards/
+                interceptors/
+                models/
+
+                shared/
+                components/
+                directives/
+                pipes/
+
+                features/
+                home/
+                    components/
+                    pages/
+                    services/
+
+                auth/
+                    components/
+                    pages/
+                    services/
+
+            assets/
+            environments/
+            styles/
+
+
+Estrutura basica em todos os projetos
+
 
 1) Visão macro (C4 – Containers)
 
-[Angular SPA] -> [Service A (ASP.NET Core)]
-                                | publishes events/commands
-                                v
-                            [RabbitMQ Broker]
-                                ^
-                                | consumes
-                [Service B (Worker/ASP.NET Core)]
-                [Service C (Worker/ASP.NET Core)]
+[Assistente.SPA] -> [Assistente.API]
+                        | publishes events/commands
+                        v
+                    [RabbitMQ Broker]
+                        ^
+                        | consumes
+                [Assistente.Worker]
 
 2) Requisitos funcionais
 

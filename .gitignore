@@ -2,6 +2,9 @@
 [Bb]in/
 [Oo]bj/
 out/
+[Bb]uild/
+artifacts/
+publish/
 
 # User-specific files
 *.user
@@ -9,29 +12,47 @@ out/
 *.suo
 *.userosscache
 *.sln.docstates
+*.userprefs
 
 # IDE directories
 .vs/
 .idea/
 .vscode/
+_ReSharper*/
+*.DotSettings.user
 
 # NuGet
 *.nupkg
 *.snupkg
 packages/
+*.nuget.props
+*.nuget.targets
 
 # Logs
 *.log
+*.pid
+*.seed
 
 # Test and coverage outputs
 TestResults/
 *.trx
 coverage/
 coverage.*
+*.coverage
+*.coveragexml
+BenchmarkDotNet.Artifacts/
 
 # Publish profiles (sensitive)
 Properties/PublishProfiles/*.pubxml
 Properties/PublishProfiles/*.publishsettings
+
+# MSBuild / generated files
+*.cache
+*.tmp
+*.temp
+*.bak
+*.old
+Generated Files/
 
 # OS files
 .DS_Store
