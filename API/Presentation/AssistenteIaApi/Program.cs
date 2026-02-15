@@ -34,6 +34,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseHttpsRedirection();
+app.UseExceptionHandler();
 app.UseSerilogRequestLogging();
 app.UseSwagger();
 app.UseSwaggerUI(options =>
