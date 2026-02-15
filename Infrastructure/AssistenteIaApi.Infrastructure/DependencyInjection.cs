@@ -2,6 +2,7 @@ using AssistenteIaApi.Application.Ports.Out;
 using AssistenteIaApi.Domain.Repositories;
 using AssistenteIaApi.Infrastructure.Config;
 using AssistenteIaApi.Infrastructure.Messaging.Brokers;
+using AssistenteIaApi.Infrastructure.Messaging.Executors;
 using AssistenteIaApi.Infrastructure.Messaging.Producers;
 using AssistenteIaApi.Infrastructure.Persistence.Orm;
 using AssistenteIaApi.Infrastructure.Persistence.Repositories;
@@ -51,6 +52,7 @@ public static class DependencyInjection
     public static IServiceCollection AddTaskQueueConsumer(this IServiceCollection services, IConfiguration configuration)
     {
         var rabbitOptions = configuration.GetSection("RabbitMQ").Get<RabbitMqOptions>() ?? new RabbitMqOptions();
+        services.AddScoped<ITaskExecutor, MockTaskExecutor>();
 
         services.AddMassTransit(x =>
         {

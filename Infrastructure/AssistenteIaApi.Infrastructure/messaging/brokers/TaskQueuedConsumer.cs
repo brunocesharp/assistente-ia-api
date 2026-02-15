@@ -1,86 +1,114 @@
 using AssistenteIaApi.Application.Ports.Out;
 using AssistenteIaApi.Domain.Entities;
 using AssistenteIaApi.Domain.ValueObjects;
+using AssistenteIaApi.Infrastructure.Messaging.Executors;
 using AssistenteIaApi.Infrastructure.Persistence.Orm;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace AssistenteIaApi.Infrastructure.Messaging.Brokers;
 
 public class TaskQueuedConsumer : IConsumer<TaskQueued>
 {
-    private readonly AssistenteIaApiDbContext _dbContext;
+    private readonly AssistenteIaApiDbContext _db;
+    private readonly ITaskExecutor _executor;
+    private readonly ILogger<TaskQueuedConsumer> _logger;
 
-    public TaskQueuedConsumer(AssistenteIaApiDbContext dbContext)
+    public TaskQueuedConsumer(
+        AssistenteIaApiDbContext db,
+        ITaskExecutor executor,
+        ILogger<TaskQueuedConsumer> logger)
     {
-        _dbContext = dbContext;
+        _db = db;
+        _executor = executor;
+        _logger = logger;
     }
 
-    public async Task Consume(ConsumeContext<TaskQueued> context)
+    public async Task Consume(ConsumeContext<TaskQueued> ctx)
     {
-        var task = await _dbContext.Tasks.FirstOrDefaultAsync(x => x.Id == context.Message.TaskId, context.CancellationToken);
-        if (task is null)
+        var msg = ctx.Message;
+        var workerId = Environment.MachineName;
+        var now = DateTimeOffset.UtcNow;
+        var lease = now.AddMinutes(10);
+
+        var claimed = await _db.Tasks
+            .Where(t => t.Id == msg.TaskId
+                     && t.Status == AiTaskStatus.Queued
+                     && (t.LockedUntil == null || t.LockedUntil < now))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(t => t.Status, AiTaskStatus.Running)
+                .SetProperty(t => t.LockedBy, workerId)
+                .SetProperty(t => t.LockedUntil, lease)
+                .SetProperty(t => t.AttemptCount, t => t.AttemptCount + 1)
+                .SetProperty(t => t.UpdatedAt, now), ctx.CancellationToken);
+
+        if (claimed == 0)
+        {
+            _logger.LogInformation("Task {TaskId} not claimed (already running or done).", msg.TaskId);
+            return;
+        }
+
+        var taskEntity = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == msg.TaskId, ctx.CancellationToken);
+        if (taskEntity is null)
         {
             return;
         }
 
-        if (!task.TryStartRunning($"worker-{Environment.MachineName}"))
-        {
-            await _dbContext.SaveChangesAsync(context.CancellationToken);
-            return;
-        }
-
-        var attemptNo = task.AttemptCount;
-        var attemptAlreadyExists = await _dbContext.TaskAttempts.AnyAsync(
-            x => x.TaskId == task.Id && x.AttemptNo == attemptNo,
-            context.CancellationToken);
-
-        if (attemptAlreadyExists)
-        {
-            return;
-        }
-
-        var attempt = new TaskAttempt(task.Id, attemptNo);
-        _dbContext.TaskAttempts.Add(attempt);
-
+        var attempt = new TaskAttempt(taskEntity.Id, taskEntity.AttemptCount);
+        _db.TaskAttempts.Add(attempt);
         var start = DateTimeOffset.UtcNow;
-        await Task.Delay(200, context.CancellationToken);
 
-        var forceFail = task.PayloadJson.Contains("\"forceFail\":true", StringComparison.OrdinalIgnoreCase);
+        try
+        {
+            var result = await _executor.ExecuteAsync(msg.Type, taskEntity.PayloadJson, ctx.CancellationToken);
+            var latency = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
 
-        if (forceFail)
+            attempt.CompleteSuccess("mock-executor", 0, 0, 0, latency);
+            taskEntity.MarkSucceeded();
+            _db.TaskArtifacts.Add(new TaskArtifact(taskEntity.Id, "text", null, result));
+
+            await _db.SaveChangesAsync(ctx.CancellationToken);
+        }
+        catch (TransientAiException ex)
         {
             var latency = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
-            attempt.CompleteFailure("AI_EXEC_ERROR", "Execution failed by forceFail payload flag.", latency);
-            task.MarkFailed("Execution failed by forceFail payload flag.");
-
-            if (task.Status == AiTaskStatus.Queued)
-            {
-                var backoffSeconds = Math.Min(30, (int)Math.Pow(2, context.Message.Attempt + 1));
-                await _dbContext.SaveChangesAsync(context.CancellationToken);
-                await Task.Delay(TimeSpan.FromSeconds(backoffSeconds), context.CancellationToken);
-
-                await context.Publish(
-                    new TaskQueued(task.Id, context.Message.Type, context.Message.Attempt + 1, context.Message.CorrelationId),
-                    context.CancellationToken);
-
-                return;
-            }
-
-            await _dbContext.SaveChangesAsync(context.CancellationToken);
-            return;
+            attempt.CompleteFailure("AI_TRANSIENT_ERROR", ex.Message, latency);
+            await MarkRetryAsync(msg.TaskId, ex.Message, ctx.CancellationToken);
+            await _db.SaveChangesAsync(ctx.CancellationToken);
+            throw;
         }
+        catch (Exception ex)
+        {
+            var latency = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
+            attempt.CompleteFailure("AI_EXEC_ERROR", ex.Message, latency);
+            await MarkFailedAsync(msg.TaskId, ex.ToString(), ctx.CancellationToken);
+            await _db.SaveChangesAsync(ctx.CancellationToken);
+            throw;
+        }
+    }
 
-        var successLatency = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
-        attempt.CompleteSuccess("mock-llm", 120, 340, 0.0007m, successLatency);
-        task.MarkSucceeded();
+    private async Task MarkRetryAsync(Guid taskId, string error, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        await _db.Tasks.Where(t => t.Id == taskId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(t => t.Status, AiTaskStatus.Queued)
+                .SetProperty(t => t.LastError, error)
+                .SetProperty(t => t.LockedUntil, (DateTimeOffset?)null)
+                .SetProperty(t => t.LockedBy, (string?)null)
+                .SetProperty(t => t.UpdatedAt, now), ct);
+    }
 
-        _dbContext.TaskArtifacts.Add(new TaskArtifact(
-            task.Id,
-            "text",
-            null,
-            $"Task {task.Id} processed successfully at {DateTimeOffset.UtcNow:O}."));
-
-        await _dbContext.SaveChangesAsync(context.CancellationToken);
+    private async Task MarkFailedAsync(Guid taskId, string error, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        await _db.Tasks.Where(t => t.Id == taskId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(t => t.Status, AiTaskStatus.Failed)
+                .SetProperty(t => t.LastError, error)
+                .SetProperty(t => t.LockedUntil, (DateTimeOffset?)null)
+                .SetProperty(t => t.LockedBy, (string?)null)
+                .SetProperty(t => t.UpdatedAt, now), ct);
     }
 }
