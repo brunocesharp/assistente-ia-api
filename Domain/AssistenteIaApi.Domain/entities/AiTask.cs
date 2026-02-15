@@ -5,7 +5,9 @@ namespace AssistenteIaApi.Domain.Entities;
 public class AiTask : Entity
 {
     public string TenantId { get; private set; } = string.Empty;
-    public string Type { get; private set; } = string.Empty;
+    public DomainType DomainType { get; private set; }
+    public CapabilityType CapabilityType { get; private set; }
+    public TaskExecutionType TaskExecutionType { get; private set; }
     public int Priority { get; private set; }
     public AiTaskStatus Status { get; private set; } = AiTaskStatus.Created;
     public string PayloadJson { get; private set; } = string.Empty;
@@ -29,7 +31,9 @@ public class AiTask : Entity
 
     public AiTask(
         string tenantId,
-        string type,
+        DomainType domainType,
+        CapabilityType capabilityType,
+        TaskExecutionType taskExecutionType,
         int priority,
         string payloadJson,
         string idempotencyKey,
@@ -37,7 +41,9 @@ public class AiTask : Entity
         int maxAttempts)
     {
         TenantId = tenantId;
-        Type = type;
+        DomainType = domainType;
+        CapabilityType = capabilityType;
+        TaskExecutionType = taskExecutionType;
         Priority = priority;
         PayloadJson = payloadJson;
         IdempotencyKey = idempotencyKey;
@@ -53,5 +59,56 @@ public class AiTask : Entity
         Status = status;
         LastError = error;
         UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public bool TryCancel()
+    {
+        if (Status is AiTaskStatus.Succeeded or AiTaskStatus.DeadLetter)
+        {
+            return false;
+        }
+
+        if (Status == AiTaskStatus.Cancelled)
+        {
+            return true;
+        }
+
+        UpdateStatus(AiTaskStatus.Cancelled);
+        return true;
+    }
+
+    public bool TryStartRunning(string? lockedBy = null)
+    {
+        if (Status is AiTaskStatus.Cancelled or AiTaskStatus.Succeeded or AiTaskStatus.DeadLetter)
+        {
+            return false;
+        }
+
+        Status = AiTaskStatus.Running;
+        AttemptCount++;
+        LockedBy = lockedBy;
+        UpdatedAt = DateTimeOffset.UtcNow;
+        return true;
+    }
+
+    public void MarkSucceeded()
+    {
+        Status = AiTaskStatus.Succeeded;
+        LastError = null;
+        LockedBy = null;
+        LockedUntil = null;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void MarkFailed(string error)
+    {
+        LastError = error;
+        LockedBy = null;
+        LockedUntil = null;
+        UpdatedAt = DateTimeOffset.UtcNow;
+
+        Status = AttemptCount < MaxAttempts
+            ? AiTaskStatus.Queued
+            : AiTaskStatus.DeadLetter;
     }
 }

@@ -1,14 +1,29 @@
 using AssistenteIaApi.Application;
-using AssistenteIaApi.Application.Dto;
-using AssistenteIaApi.Application.Ports.In;
 using AssistenteIaApi.Infrastructure;
 using AssistenteIaApi.Infrastructure.Persistence.Orm;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseSerilog((context, loggerConfiguration) =>
+    loggerConfiguration.ReadFrom.Configuration(context.Configuration));
 
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructurePersistence(builder.Configuration);
+builder.Services.AddTaskQueuePublisher(builder.Configuration);
+builder.Services.AddProblemDetails();
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Assistente IA API",
+        Version = "v1",
+        Description = "API para orquestracao de tarefas de IA."
+    });
+});
 
 var app = builder.Build();
 
@@ -19,18 +34,14 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseHttpsRedirection();
-
-app.MapGet("/", () => "API no ar");
-app.MapPost("/tasks", async (CreateTaskRequest request, ITaskAppService service, CancellationToken cancellationToken) =>
+app.UseSerilogRequestLogging();
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    var created = await service.CreateAsync(request, cancellationToken);
-    return Results.Created($"/tasks/{created.Id}", created);
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Assistente IA API v1");
+    options.RoutePrefix = "swagger";
 });
 
-app.MapGet("/tasks/{id:guid}", async (Guid id, ITaskAppService service, CancellationToken cancellationToken) =>
-{
-    var task = await service.GetByIdAsync(id, cancellationToken);
-    return task is null ? Results.NotFound() : Results.Ok(task);
-});
+app.MapControllers();
 
 app.Run();

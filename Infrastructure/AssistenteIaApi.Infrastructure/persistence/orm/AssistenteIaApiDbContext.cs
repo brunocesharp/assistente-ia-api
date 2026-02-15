@@ -1,5 +1,7 @@
 using AssistenteIaApi.Domain.Entities;
+using AssistenteIaApi.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace AssistenteIaApi.Infrastructure.Persistence.Orm;
 
@@ -18,10 +20,16 @@ public class AssistenteIaApiDbContext : DbContext
     {
         modelBuilder.Entity<AiTask>(entity =>
         {
+            var domainTypeConverter = new EnumToStringConverter<DomainType>();
+            var capabilityTypeConverter = new EnumToStringConverter<CapabilityType>();
+            var executionTypeConverter = new EnumToStringConverter<TaskExecutionType>();
+
             entity.ToTable("Tasks");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.TenantId).HasMaxLength(100).IsRequired();
-            entity.Property(x => x.Type).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.DomainType).HasConversion(domainTypeConverter).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.CapabilityType).HasConversion(capabilityTypeConverter).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.TaskExecutionType).HasConversion(executionTypeConverter).HasMaxLength(80).IsRequired();
             entity.Property(x => x.PayloadJson).HasColumnType("text").IsRequired();
             entity.Property(x => x.IdempotencyKey).HasMaxLength(120).IsRequired();
             entity.Property(x => x.LockedBy).HasMaxLength(120);
