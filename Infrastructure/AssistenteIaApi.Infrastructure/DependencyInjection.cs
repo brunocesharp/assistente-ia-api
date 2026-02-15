@@ -52,7 +52,15 @@ public static class DependencyInjection
     public static IServiceCollection AddTaskQueueConsumer(this IServiceCollection services, IConfiguration configuration)
     {
         var rabbitOptions = configuration.GetSection("RabbitMQ").Get<RabbitMqOptions>() ?? new RabbitMqOptions();
-        services.AddScoped<ITaskExecutor, MockTaskExecutor>();
+        services.AddScoped<ITaskExecutorResolver, TaskExecutorResolver>();
+        services.AddScoped<ITaskExecutor, DocumentProcessingTaskExecutor>();
+        services.AddScoped<ITaskExecutor, CustomerSupportTaskExecutor>();
+        services.AddScoped<ITaskExecutor, ComplianceCheckTaskExecutor>();
+        services.AddScoped<ITaskExecutor, ContentCreationTaskExecutor>();
+        services.AddScoped<ITaskExecutor, DataAnalysisTaskExecutor>();
+        services.AddScoped<ITaskExecutor, CodeAutomationTaskExecutor>();
+        services.AddScoped<ITaskExecutor, DecisionAutomationTaskExecutor>();
+        services.AddScoped<ITaskExecutor, MonitoringAlertTaskExecutor>();
 
         services.AddMassTransit(x =>
         {

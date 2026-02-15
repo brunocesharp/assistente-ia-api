@@ -1,6 +1,4 @@
-using AssistenteIaApi.Application.Ports.Out;
 using AssistenteIaApi.Infrastructure;
-using AssistenteIaApi.Infrastructure.Messaging.Executors;
 using AssistenteIaApi.Infrastructure.Persistence.Orm;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
@@ -14,8 +12,6 @@ builder.Services.AddSerilog((services, loggerConfiguration) =>
 
 builder.Services.AddInfrastructurePersistence(builder.Configuration);
 builder.Services.AddTaskQueueConsumer(builder.Configuration);
-
-builder.Services.AddScoped<ITaskExecutor, MockTaskExecutor>();
 
 var host = builder.Build();
 

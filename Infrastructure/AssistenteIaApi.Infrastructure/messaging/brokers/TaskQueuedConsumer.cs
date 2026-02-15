@@ -12,16 +12,16 @@ namespace AssistenteIaApi.Infrastructure.Messaging.Brokers;
 public class TaskQueuedConsumer : IConsumer<TaskQueued>
 {
     private readonly AssistenteIaApiDbContext _db;
-    private readonly ITaskExecutor _executor;
+    private readonly ITaskExecutorResolver _executorResolver;
     private readonly ILogger<TaskQueuedConsumer> _logger;
 
     public TaskQueuedConsumer(
         AssistenteIaApiDbContext db,
-        ITaskExecutor executor,
+        ITaskExecutorResolver executorResolver,
         ILogger<TaskQueuedConsumer> logger)
     {
         _db = db;
-        _executor = executor;
+        _executorResolver = executorResolver;
         _logger = logger;
     }
 
@@ -62,10 +62,11 @@ public class TaskQueuedConsumer : IConsumer<TaskQueued>
 
         try
         {
-            var result = await _executor.ExecuteAsync(msg.Type, taskEntity.PayloadJson, ctx.CancellationToken);
+            var executor = _executorResolver.Resolve(taskEntity.DomainType);
+            var result = await executor.ExecuteAsync(msg.Type, taskEntity.PayloadJson, ctx.CancellationToken);
             var latency = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
 
-            attempt.CompleteSuccess("mock-executor", 0, 0, 0, latency);
+            attempt.CompleteSuccess(executor.GetType().Name, 0, 0, 0, latency);
             taskEntity.MarkSucceeded();
             _db.TaskArtifacts.Add(new TaskArtifact(taskEntity.Id, "text", null, result));
 
