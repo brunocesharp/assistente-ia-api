@@ -8,8 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Application\AssistenteIaApi.Application\AssistenteIaApi.Application.csproj" />
-    <ProjectReference Include="..\..\Infrastructure\AssistenteIaApi.Infrastructure\AssistenteIaApi.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\API\Application\AssistenteIaApi.Application\AssistenteIaApi.Application.csproj" />
+    <ProjectReference Include="..\..\API\Infrastructure\AssistenteIaApi.Infrastructure\AssistenteIaApi.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
