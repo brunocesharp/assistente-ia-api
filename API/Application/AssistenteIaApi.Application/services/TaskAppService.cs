@@ -1,6 +1,7 @@
 using AssistenteIaApi.Application.Dto;
 using AssistenteIaApi.Application.Ports.In;
 using AssistenteIaApi.Application.Ports.Out;
+using AssistenteIaApi.Application.Validation;
 using AssistenteIaApi.Domain.Entities;
 using AssistenteIaApi.Domain.Repositories;
 using AssistenteIaApi.Domain.ValueObjects;
@@ -20,6 +21,8 @@ public class TaskAppService : ITaskAppService
 
     public async Task<TaskResponse> CreateAsync(CreateTaskRequest request, CancellationToken cancellationToken = default)
     {
+        TaskRequestValidator.ValidateCreate(request);
+
         var existing = await _taskRepository.GetByTenantAndIdempotencyAsync(
             request.TenantId,
             request.IdempotencyKey,
@@ -59,8 +62,10 @@ public class TaskAppService : ITaskAppService
 
     public async Task<PagedTasksResponse> ListAsync(ListTasksQuery query, CancellationToken cancellationToken = default)
     {
-        var page = query.Page < 1 ? 1 : query.Page;
-        var pageSize = query.PageSize is < 1 or > 100 ? 20 : query.PageSize;
+        TaskRequestValidator.ValidateList(query);
+
+        var page = query.Page;
+        var pageSize = query.PageSize;
         var parsedStatus = ParseStatus(query.Status);
         var parsedDomainType = ParseDomainType(query.DomainType);
         var parsedCapabilityType = ParseCapabilityType(query.CapabilityType ?? query.Type);

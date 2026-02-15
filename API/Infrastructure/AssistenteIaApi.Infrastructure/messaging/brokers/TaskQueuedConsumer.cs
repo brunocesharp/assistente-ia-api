@@ -77,43 +77,37 @@ public class TaskQueuedConsumer : IConsumer<TaskQueued>
         {
             var latency = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
             attempt.CompleteFailure("AI_TRANSIENT_ERROR", ex.Message, latency);
-            await MarkRetryAsync(msg.TaskId, ex.Message, ctx.CancellationToken);
+            taskEntity.MarkFailed(ex.Message);
             await _db.SaveChangesAsync(ctx.CancellationToken);
-            _logger.LogWarning(ex, "Transient failure for task {TaskId}. Re-queued after {LatencyMs}ms.", msg.TaskId, latency);
-            throw;
+
+            if (taskEntity.Status == AiTaskStatus.Queued)
+            {
+                await ctx.Publish(new TaskQueued(taskEntity.Id, msg.Type, taskEntity.AttemptCount, msg.CorrelationId), ctx.CancellationToken);
+                _logger.LogWarning(
+                    ex,
+                    "Transient failure for task {TaskId}. Re-queued (attempt {AttemptCount}/{MaxAttempts}) after {LatencyMs}ms.",
+                    msg.TaskId,
+                    taskEntity.AttemptCount,
+                    taskEntity.MaxAttempts,
+                    latency);
+                return;
+            }
+
+            _logger.LogWarning(
+                ex,
+                "Transient failure for task {TaskId}. Max attempts reached ({AttemptCount}/{MaxAttempts}); task moved to dead-letter after {LatencyMs}ms.",
+                msg.TaskId,
+                taskEntity.AttemptCount,
+                taskEntity.MaxAttempts,
+                latency);
         }
         catch (Exception ex)
         {
             var latency = (int)(DateTimeOffset.UtcNow - start).TotalMilliseconds;
             attempt.CompleteFailure("AI_EXEC_ERROR", ex.Message, latency);
-            await MarkFailedAsync(msg.TaskId, ex.ToString(), ctx.CancellationToken);
+            taskEntity.MarkPermanentFailure(ex.ToString());
             await _db.SaveChangesAsync(ctx.CancellationToken);
             _logger.LogError(ex, "Permanent failure for task {TaskId} after {LatencyMs}ms.", msg.TaskId, latency);
-            throw;
         }
-    }
-
-    private async Task MarkRetryAsync(Guid taskId, string error, CancellationToken ct)
-    {
-        var now = DateTimeOffset.UtcNow;
-        await _db.Tasks.Where(t => t.Id == taskId)
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(t => t.Status, AiTaskStatus.Queued)
-                .SetProperty(t => t.LastError, error)
-                .SetProperty(t => t.LockedUntil, (DateTimeOffset?)null)
-                .SetProperty(t => t.LockedBy, (string?)null)
-                .SetProperty(t => t.UpdatedAt, now), ct);
-    }
-
-    private async Task MarkFailedAsync(Guid taskId, string error, CancellationToken ct)
-    {
-        var now = DateTimeOffset.UtcNow;
-        await _db.Tasks.Where(t => t.Id == taskId)
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(t => t.Status, AiTaskStatus.Failed)
-                .SetProperty(t => t.LastError, error)
-                .SetProperty(t => t.LockedUntil, (DateTimeOffset?)null)
-                .SetProperty(t => t.LockedBy, (string?)null)
-                .SetProperty(t => t.UpdatedAt, now), ct);
     }
 }

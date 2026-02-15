@@ -20,14 +20,11 @@ public sealed class TasksController(ITaskAppService service) : ControllerBase
         [FromHeader(Name = "X-Tenant-Id")] string? tenantId,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(idempotencyKey))
-        {
-            return ProblemResponse(StatusCodes.Status400BadRequest, "Idempotency-Key header is required.");
-        }
+        var effectiveTenantId = string.IsNullOrWhiteSpace(tenantId) ? "default" : tenantId.Trim();
 
         var command = new CreateTaskRequest
         {
-            TenantId = string.IsNullOrWhiteSpace(tenantId) ? "default" : tenantId,
+            TenantId = effectiveTenantId,
             DomainType = request.DomainType,
             CapabilityType = string.IsNullOrWhiteSpace(request.CapabilityType) ? request.Type ?? string.Empty : request.CapabilityType,
             TaskExecutionType = request.TaskExecutionType,
@@ -62,19 +59,26 @@ public sealed class TasksController(ITaskAppService service) : ControllerBase
     [ProducesResponseType<IReadOnlyList<TaskResponse>>(StatusCodes.Status200OK)]
     public async Task<IActionResult> ListAsync([FromQuery] ListTasksHttpRequest request, CancellationToken cancellationToken)
     {
-        var result = await service.ListAsync(new ListTasksQuery
+        try
         {
-            Status = request.Status,
-            DomainType = request.DomainType,
-            CapabilityType = request.CapabilityType,
-            TaskExecutionType = request.TaskExecutionType,
-            Type = request.Type,
-            Page = request.Page ?? 1,
-            PageSize = request.PageSize ?? 20
-        }, cancellationToken);
+            var result = await service.ListAsync(new ListTasksQuery
+            {
+                Status = request.Status,
+                DomainType = request.DomainType,
+                CapabilityType = request.CapabilityType,
+                TaskExecutionType = request.TaskExecutionType,
+                Type = request.Type,
+                Page = request.Page ?? 1,
+                PageSize = request.PageSize ?? 20
+            }, cancellationToken);
 
-        Response.Headers.Append("X-Total-Count", result.TotalCount.ToString());
-        return Ok(result.Items);
+            Response.Headers.Append("X-Total-Count", result.TotalCount.ToString());
+            return Ok(result.Items);
+        }
+        catch (ArgumentException ex)
+        {
+            return ProblemResponse(StatusCodes.Status400BadRequest, ex.Message);
+        }
     }
 
     [HttpPost("{id:guid}/cancel")]

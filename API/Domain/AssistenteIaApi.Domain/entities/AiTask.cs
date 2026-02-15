@@ -111,4 +111,13 @@ public class AiTask : Entity
             ? AiTaskStatus.Queued
             : AiTaskStatus.DeadLetter;
     }
+
+    public void MarkPermanentFailure(string error)
+    {
+        LastError = error;
+        Status = AiTaskStatus.DeadLetter;
+        LockedBy = null;
+        LockedUntil = null;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
 }
