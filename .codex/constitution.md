@@ -257,6 +257,10 @@ builder.Services.AddMassTransit(x =>
 });
 
 
+11) Log
 
-
+Pacote: Serilog
+Tipo:File
+Local: pasta raiz do projeto
+Adicionar log no AssistenteIaApi e no AssistenteIaApi.ServiceB.Worker
 
